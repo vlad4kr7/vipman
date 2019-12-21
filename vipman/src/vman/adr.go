@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
-	"reflect"
 	"runtime"
 	"strings"
 )
 
-func localAddresses() (map[string][]*UIP, error) {
+func LocalAddresses(match string) (map[string][]*UIP, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return nil, err
+	}
+	if FlagVerbose {
+		fmt.Printf("localAddresses matching to [%s]\n", FlagEth)
 	}
 	win := runtime.GOOS == "windows"
 	resp := make(map[string][]*UIP)
@@ -22,7 +24,8 @@ func localAddresses() (map[string][]*UIP, error) {
 		if err != nil || len(addrs) == 0 { // fmt.Print(fmt.Errorf("localAddresses: %+v\n", err.Error()))
 			continue
 		}
-		if i.Name == "lo" || (len(i.Name) > 2 && i.Name[0:2] == "Lo") {
+		if i.Name == "lo" || (len(i.Name) > 2 && i.Name[0:2] == "Lo") ||
+			(len(match) > 0 && !Match(match, i.Name)) {
 			continue
 		}
 		if win {
@@ -88,7 +91,7 @@ type UIP struct {
 }
 
 func (u *UIP) String() string {
-	return fmt.Sprintf("name: %s, id: %s, ip: %s / %s, scope: %s, brd: %s, v6: %t, secondary: %t, dynamic: %t",
+	return fmt.Sprintf("name: %s, id: %s, ip: %s / %s, brd: %s, \n\t scope: %s, v6: %t, secondary: %t, dynamic: %t",
 		u.Name, u.Id, u.Ip, u.Mask, u.Scope, u.Brd, u.IPv6, u.Secondary, u.Dynamic)
 }
 
@@ -130,38 +133,4 @@ func initUIP(eth string, ss []string) *UIP {
 	u.Dynamic = ss[shift+1] == "dynamic"
 
 	return &u
-}
-
-func PrepareShow() {
-	lst, err := localAddresses()
-	if err != nil {
-		fmt.Printf("Err: %v", err)
-	} else {
-		for k, e := range lst {
-			if len(e) > 0 {
-				fmt.Printf("Ethernet: %s [%d]\n", k, len(e))
-				for _, i := range e {
-					fmt.Printf("\t%s\n", i.String())
-				}
-			}
-		}
-	}
-}
-
-func examiner(t reflect.Type, depth int) {
-	fmt.Println(strings.Repeat("\t", depth), "Type is", t.Name(), "and kind is", t.Kind())
-	switch t.Kind() {
-	case reflect.Array, reflect.Chan, reflect.Map, reflect.Ptr, reflect.Slice:
-		fmt.Println(strings.Repeat("\t", depth+1), "Contained type:")
-		examiner(t.Elem(), depth+1)
-	case reflect.Struct:
-		for i := 0; i < t.NumField(); i++ {
-			f := t.Field(i)
-			fmt.Println(strings.Repeat("\t", depth+1), "Field", i+1, "name is", f.Name, "type is", f.Type.Name(), "and kind is", f.Type.Kind())
-			if f.Tag != "" {
-				fmt.Println(strings.Repeat("\t", depth+2), "Tag is", f.Tag)
-				fmt.Println(strings.Repeat("\t", depth+2), "tag1 is", f.Tag.Get("tag1"), "tag2 is", f.Tag.Get("tag2"))
-			}
-		}
-	}
 }

@@ -98,3 +98,25 @@ type config struct {
 	// If true, exit the supervisor process if a subprocess exits with an error.
 	ExitOnError bool `yaml:"exit_on_error"`
 }
+
+func Start() {
+	Panic("")
+
+}
+func Stop() {
+	Panic("")
+
+}
+func StopAll() {
+	Panic("")
+
+}
+func Restart() {
+	Panic("")
+
+}
+
+func RestartAll() {
+	Panic("")
+
+}

@@ -1,0 +1,5 @@
+package vman
+
+func Join() {
+
+}
