@@ -2,33 +2,51 @@ package vman
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"reflect"
 	"strings"
 )
 
-var FlagEth, FlagProcfile, FlagBaseDir, FlagPort, FlagParent, FlagAdd, FlagIp string
+var FlagEth, FlagProcfile, FlagBaseDir, FlagPort, FlagParent, FlagSet, FlagIp string
 var FlagClean, FlagVerbose bool
 
 func Match(a, b string) bool {
-	//fmt.Printf("%t %t \n", len(a)>=len(b),a[len(a)-1]=='*')
 	lena := len(a) - 1
 	if len(b) > 0 && lena >= 0 && len(b) >= lena && a[lena] == '*' {
-		//fmt.Printf("%s[%s] = %s[%s] \n", a, a[0:lena], b, b[0:lena])
+		//		Log("%t %t \n", a[0:lena], b[0:lena])
 		return a[0:lena] == b[0:lena]
 	} else {
+		//		Log("%s = %s \n", a, b)
 		return a == b
 	}
 }
 
-func Panic(msg string) {
+func Panic(msg string, v ...interface{}) {
 	if len(msg) == 0 {
 		msg = "NOT IMPLEMENTED YET\n"
 	}
-	fmt.Fprintf(os.Stderr, msg)
-	os.Exit(1)
+	log.SetOutput(os.Stderr)
+	log.Fatalf(msg, v...)
 }
 
+func Log(msg string, v ...interface{}) {
+	if msg[len(msg)-1] != '\n' {
+		msg = msg + "\n"
+	}
+	log.Printf(msg, v...)
+}
+
+func LogError(msg string, v ...interface{}) {
+	if msg[len(msg)-1] != '\n' {
+		msg = msg + "\n"
+	}
+	log.SetOutput(os.Stderr)
+	log.Printf(msg, v...)
+	log.SetOutput(os.Stdout)
+}
+
+// not used
 func examiner(t reflect.Type, depth int) {
 	fmt.Println(strings.Repeat("\t", depth), "Type is", t.Name(), "and kind is", t.Kind())
 	switch t.Kind() {

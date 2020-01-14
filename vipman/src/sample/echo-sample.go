@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/spf13/cobra"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -20,7 +20,7 @@ func echoHandler(c echo.Context) error {
 
 func hertbeat() {
 	for {
-		fmt.Println("bip")
+		log.Println("bip")
 		time.Sleep(time.Duration(FlagHertbeat) * time.Second)
 	}
 }
@@ -33,7 +33,7 @@ func main() {
 				go hertbeat()
 			}
 			port := strconv.Itoa(FlagPort)
-			fmt.Println("Starting echo web service on port: " + port)
+			log.Println("Starting echo web service on port: " + port)
 
 			e := echo.New()
 			e.Use(middleware.Logger())
@@ -43,7 +43,7 @@ func main() {
 			e.Logger.Fatal(e.Start(FlagIp + ":" + port))
 		},
 	}
-	rootCmd.Flags().IntVarP(&FlagHertbeat, "hertbeat", "b", 0, "Hertbeat interval. Default set to zero (0) to disable hertbeat logs")
+	rootCmd.Flags().IntVarP(&FlagHertbeat, "hertbeat", "b", 0, "Hertbeat interval. Default set to zero (0) to disable hertbeat")
 	rootCmd.Flags().IntVarP(&FlagPort, "port", "p", 8080, "Echo server port")
 	rootCmd.Flags().StringVarP(&FlagIp, "ip", "i", "0.0.0.0", "Echo server binding IP")
 	rootCmd.Execute()

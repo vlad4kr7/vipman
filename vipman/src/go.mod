@@ -17,6 +17,7 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.4.0
+	golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3
 	golang.org/x/sys v0.0.0-20191220220014-0732a990476f // indirect
 	gopkg.in/fsnotify/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect

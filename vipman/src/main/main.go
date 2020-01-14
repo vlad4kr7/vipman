@@ -31,8 +31,8 @@ func compose(list ...CommandVO) *cobra.Command {
 }
 
 //-------- Flags definitions. All flags are static for app instance. --------//
-func FFlagAdd(c *cobra.Command) string {
-	c.Flags().StringVarP(&vman.FlagAdd, "add", "a", "", `Number of IP alias to create on sepecified Ethernet interface. 
+func FFlagSet(c *cobra.Command) string {
+	c.Flags().StringVarP(&vman.FlagSet, "set", "s", "", `Total number of IP including alias to create (if not exist) on sepecified Ethernet interface. 
 If multiple ethernet interfaces match, then IP alias will be created for each.`)
 	return "add"
 }
@@ -52,8 +52,8 @@ func FFlagIp(c *cobra.Command) string {
 }
 
 func FFlagProCommandVOile(c *cobra.Command) string {
-	c.Flags().StringVarP(&vman.FlagProcfile, "proCommandVOile", "p", "", "ProCommandVOile to start services")
-	return "proCommandVOile"
+	c.Flags().StringVarP(&vman.FlagProcfile, "procfile", "p", "", "Procfile to start services")
+	return "procfile"
 }
 
 func FFlagBaseDir(c *cobra.Command) string {
@@ -80,7 +80,7 @@ func main() {
 		CommandVO{&cobra.Command{
 			Use:   "prepare",
 			Short: "Prepare Ethernet interfaces",
-			Long: `Show list OR Create IP alias to network interfaces as preparetion to strart services from proc file.
+			Long: `Show list OR Create IP alias to network interfaces as preparetion to start services from proc file.
 Create and Cleanup will require root priveledges, so run as "sudo vipman prepare --add"
 If neither --add nor --clean flag set, then will show.
 If either  --add and --clean flag set will fail.`,
@@ -88,7 +88,7 @@ If either  --add and --clean flag set will fail.`,
 			Run: func(cmd *cobra.Command, args []string) {
 				vman.Prepare() // done except clean
 			},
-		}, []func(*cobra.Command) string{FFlagEth, FFlagAdd, FFlagClean}, []int{0}},
+		}, []func(*cobra.Command) string{FFlagEth, FFlagSet, FFlagClean}, []int{0}},
 		//---------------------------------------------------------------------------//
 		CommandVO{&cobra.Command{
 			Use:   "status",
@@ -96,7 +96,7 @@ If either  --add and --clean flag set will fail.`,
 			Long: `Short status of a vipman processes including proxy and underlying vipmans.
 Returns OK and exit code 0 if no errors` + CLIENT,
 			Run: func(cmd *cobra.Command, args []string) {
-				vman.RpcStatusCall() //todo
+				vman.RpcStatusCall()
 			},
 		}, []func(*cobra.Command) string{FFlagPort}, []int{}},
 		//---------------------------------------------------------------------------//
@@ -105,7 +105,7 @@ Returns OK and exit code 0 if no errors` + CLIENT,
 			Short: "List processes",
 			Long:  `Detailed list of processes uncluding underlying vipmans` + CLIENT,
 			Run: func(cmd *cobra.Command, args []string) {
-				vman.RpcListCall() //todo
+				vman.RpcListCall()
 			},
 		}, []func(*cobra.Command) string{FFlagPort}, []int{}},
 		//---------------------------------------------------------------------------//

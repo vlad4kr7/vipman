@@ -1,6 +1,8 @@
 package vman
 
-import ()
+import (
+	_ "golang.org/x/net/http/httpproxy"
+)
 
 func Pause() {
 	Panic("")
