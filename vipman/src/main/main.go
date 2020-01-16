@@ -47,11 +47,11 @@ If multiple ethernet interfaces match, service will start on all IP alias for wi
 	return "eth"
 }
 func FFlagIp(c *cobra.Command) string {
-	c.Flags().StringVarP(&vman.FlagIp, "ip", "", "", `Ip address OR comma separeted list of IPs`)
+	c.Flags().StringVarP(&vman.FlagIp, "ip", "", "", `Ip address OR comma separated list of IPs`)
 	return "ip"
 }
 
-func FFlagProCommandVOile(c *cobra.Command) string {
+func FFlagProcfile(c *cobra.Command) string {
 	c.Flags().StringVarP(&vman.FlagProcfile, "procfile", "p", "", "Procfile to start services")
 	return "procfile"
 }
@@ -62,7 +62,7 @@ func FFlagBaseDir(c *cobra.Command) string {
 }
 
 func FFlagPort(c *cobra.Command) string {
-	c.Flags().StringVarP(&vman.FlagPort, "port", "o", "", "RPC Port to serve status etc")
+	c.Flags().IntVarP(&vman.FlagPort, "port", "o", vman.DEF_RPC_PORT, "RPC Port to serve status etc")
 	return "port"
 }
 
@@ -71,8 +71,18 @@ func FFlagParent(c *cobra.Command) string {
 	return "parent"
 }
 
+func FFlagChild(c *cobra.Command) string {
+	c.Flags().StringVarP(&vman.FlagChild, "child", "l", "", "IP or NIC interfaces name of where vipman child started to configure proxy")
+	return "child"
+}
+
+func FFlagProxy(c *cobra.Command) string {
+	c.Flags().StringVarP(&vman.FlagProxy, "proxy", "x", "", "command (p)pause or (r)resume to control proxy")
+	return "proxy"
+}
+
 const CLIENT = `
-This is a rpc call to running vipman service to perform the command. The command also will broadcasted to all underlying services`
+This is a rpc call to running vipman service to perform the command. The command (except proxy) also will broadcasted to all underlying services `
 
 func main() {
 	compose(
@@ -88,7 +98,7 @@ If either  --add and --clean flag set will fail.`,
 			Run: func(cmd *cobra.Command, args []string) {
 				vman.Prepare() // done except clean
 			},
-		}, []func(*cobra.Command) string{FFlagEth, FFlagSet, FFlagClean}, []int{0}},
+		}, []func(*cobra.Command) string{FFlagEth, FFlagSet, FFlagClean}, []int{}},
 		//---------------------------------------------------------------------------//
 		CommandVO{&cobra.Command{
 			Use:   "status",
@@ -110,48 +120,27 @@ Returns OK and exit code 0 if no errors` + CLIENT,
 		}, []func(*cobra.Command) string{FFlagPort}, []int{}},
 		//---------------------------------------------------------------------------//
 		CommandVO{&cobra.Command{
-			Use:   "join",
-			Short: "Start a ProCommandVOile. Same as start, but join the root vipman",
-			Long: `Start a ProCommandVOile and feed started processes to parent vipman. 
-Useful to run set of services on VMWare / Virtual box.` + CLIENT,
-			Run: func(cmd *cobra.Command, args []string) {
-				vman.Join()
-			},
-		}, []func(*cobra.Command) string{FFlagProCommandVOile, FFlagEth, FFlagParent, FFlagPort}, []int{0, 1, 2}},
-		//---------------------------------------------------------------------------//
-		CommandVO{&cobra.Command{
-			Use:   "pause",
-			Short: "Pause apps on IP or all IP on interface (if set)",
-			Long: `Stop dispatching requests to particular IP from Http Proxy. 
-Will fail if neither --ip or --eth  flag set` + CLIENT,
-			//			Args:  cobra.MinimumNArgs(1),
-			Run: func(cmd *cobra.Command, args []string) {
-				vman.Pause()
-			},
-		}, []func(*cobra.Command) string{FFlagEth, FFlagPort, FFlagIp}, []int{}},
-		//---------------------------------------------------------------------------//
-		CommandVO{&cobra.Command{
-			Use:   "resume",
-			Short: "Resume paused IP",
-			Long: `Resume paused IP or all IP on interface (if set) to dispatch to Http Proxy.
-Will resume all paused if  neither --ip or --eth  flag set.` + CLIENT,
+			Use:   "proxy",
+			Short: "Configure proxy on parent to pause / resume childs vipman",
+			Long: `Resume / Paused IP request to IP on Http Proxy.
+If no --child flags, then will list all child proxy configurations.` + CLIENT,
 			//Args: cobra.MinimumNArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-				vman.Resume()
+				vman.Proxy()
 			},
-		}, []func(*cobra.Command) string{FFlagPort, FFlagEth, FFlagIp}, []int{}},
+		}, []func(*cobra.Command) string{FFlagChild, FFlagProxy, FFlagPort, FFlagEth, FFlagIp}, []int{}},
 		//---------------------------------------------------------------------------//
 		CommandVO{&cobra.Command{
 			Use:   "start",
 			Short: "Start ProCommandVOile on specified IP/eth",
 			Long: `Process the ProCommandVOile (similar to goreman/foreman) but on IP alias and start set of processes.
-If --eth flag set, then will start on all IPs alias on all matching interfaces.
-If --ip flag set, then will start on particular IP(s)`,
+If --ip flag set, then will start on particular IP(s), then --eth flag ignored,
+If --eth flag set, then will start on all IPs alias on all matching interfaces.`,
 			//Args: cobra.MinimumNArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-				vman.Stop()
+				vman.Start()
 			},
-		}, []func(*cobra.Command) string{FFlagProCommandVOile, FFlagEth, FFlagIp, FFlagPort}, []int{0}},
+		}, []func(*cobra.Command) string{FFlagProcfile, FFlagEth, FFlagIp, FFlagPort}, []int{}},
 		//---------------------------------------------------------------------------//
 		CommandVO{&cobra.Command{
 			Use:   "stop",

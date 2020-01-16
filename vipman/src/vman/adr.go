@@ -19,7 +19,7 @@ func LocalAddresses(match string) (map[string][]*UIP, error) {
 	}
 	resp := make(map[string][]*UIP)
 	for _, i := range ifaces {
-		i.HardwareAddr.String()
+		//i.HardwareAddr.String()
 		addrs, err := i.Addrs()
 		if err != nil || len(addrs) == 0 {
 			continue
@@ -28,24 +28,66 @@ func LocalAddresses(match string) (map[string][]*UIP, error) {
 			(len(match) > 0 && !Match(match, i.Name)) {
 			continue
 		}
-		callUip(i.Name, resp)
-		/*
-			for _, a := range addrs {
-				//			examiner(reflect.TypeOf(a), 0)
-				switch v := a.(type) {
-				case *net.IPNet: //IPAddr:
-					if v.IP.To4() == nil || v.IP.IsLoopback() {
-						continue
-					}
-					tx, _ := v.IP.MarshalText()
-					fmt.Printf("%v : %s (%s) u?%t %s %d\n", i.Name, v, v.IP.String(),
-						v.IP.IsUnspecified(), string(tx), len(tx))
-				}
 
-			}
-		*/
+		if runtime.GOOS != "linux" {
+			Log("non linux use - IP addresses information in incomplete")
+			callGoIp(i, resp)
+		} else {
+			callUip(i.Name, resp)
+		}
 	}
 	return resp, nil
+}
+
+func callGoIp(nic net.Interface, mapa map[string][]*UIP) {
+	adders, err := nic.Addrs()
+	if err != nil {
+		Panic(err.Error())
+	}
+	// handle err
+	var resp []*UIP
+	for i, addr := range adders {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			{
+				ip = v.IP
+				if v.IP.To4() == nil || v.IP.IsLoopback() {
+					continue
+				}
+			}
+		case *net.IPAddr:
+			ip = v.IP
+		}
+		// process IP address
+		resp = append(resp, initGoIP(i, nic.Name, ip))
+	}
+	mapa[nic.Name] = resp
+	/*
+		for _, a := range adders {
+			//			examiner(reflect.TypeOf(a), 0)
+			switch v := a.(type) {
+			case *net.IPNet: //IPAddr:
+				if v.IP.To4() == nil || v.IP.IsLoopback() {
+					continue
+				}
+				tx, _ := v.IP.MarshalText()
+				fmt.Printf("%v : %s (%s) u?%t %s %d\n", i.Name, v, v.IP.String(),
+					v.IP.IsUnspecified(), string(tx), len(tx))
+			}
+
+		}
+	*/
+}
+
+func initGoIP(id int, name string, eth net.IP) *UIP {
+	var u UIP
+	u.Name = name
+	u.Id = fmt.Sprint(id)
+	u.Ip = eth.To4().String()
+	u.Mask = eth.DefaultMask().String()
+	u.NotLinux = true
+	return &u
 }
 
 func callUip(eth string, mapa map[string][]*UIP) { //(string, []*UIP) {
@@ -89,8 +131,8 @@ func callUip(eth string, mapa map[string][]*UIP) { //(string, []*UIP) {
 
 // unix IP
 type UIP struct {
-	Id, Name, Inet, Brd, Scope, Ip, Mask  string
-	Secondary, Dynamic, IPv6, IdNotParsed bool
+	Id, Name, Inet, Brd, Scope, Ip, Mask            string
+	Secondary, Dynamic, IPv6, IdNotParsed, NotLinux bool
 }
 
 func (u *UIP) String() string {
@@ -101,8 +143,12 @@ func (u *UIP) String() string {
 			id += " (IdNotParsed)"
 		}
 	}
-	return fmt.Sprintf("name: %s%s, ip: %s / %s, brd: %s, \n\t scope: %s, v6: %t, secondary: %t, dynamic: %t",
-		u.Name, id, u.Ip, u.Mask, u.Brd, u.Scope, u.IPv6, u.Secondary, u.Dynamic)
+	resp := fmt.Sprintf("name: %s%s, ip: %s ", u.Name, id, u.Ip)
+	if !u.NotLinux {
+		resp += fmt.Sprintf("/ %s, brd: %s,\n\t scope: %s, v6: %t, secondary: %t, dynamic: %t",
+			u.Mask, u.Brd, u.Scope, u.IPv6, u.Secondary, u.Dynamic)
+	}
+	return resp
 }
 
 func initUIP(id int, eth string, ss []string) *UIP {
@@ -150,6 +196,6 @@ func initUIP(id int, eth string, ss []string) *UIP {
 	u.Scope = ss[shift]
 	u.Secondary = ss[shift+1] == "secondary"
 	u.Dynamic = ss[shift+1] == "dynamic"
-
+	u.NotLinux = false
 	return &u
 }

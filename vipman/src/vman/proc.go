@@ -1,31 +1,40 @@
+/*
+Author: Yasuhiro Matsumoto (a.k.a mattn)
+Origin: https://github.com/mattn/goreman
+Licence: MIT
+Changes: package name, port changed to IP, etc
+Changed by Vlad Krinitsyn
+*/
+
 package vman
 
-/*
 import (
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
 // spawnProc starts the specified proc, and returns any error from running it.
-func spawnProc(name string, errCh chan<- error) {
-	proc := findProc(name)
-	logger := createLogger(name, proc.colorIndex)
+func spawnProc(proc *procInfo, errCh chan<- error) {
+	//	proc := findProc(name)
+	name := proc.name
 
-	cs := append(cmdStart, proc.cmdline)
+	logger := createLogger(name, proc.colorIndex)
+	cmdline := strings.Replace(proc.cmdline, "$IP", proc.ip.Ip, 1)
+	cs := strings.Split(cmdline, " ")
 	cmd := exec.Command(cs[0], cs[1:]...)
 	cmd.Stdin = nil
 	cmd.Stdout = logger
 	cmd.Stderr = logger
-	cmd.SysProcAttr = procAttrs
+	//	cmd.SysProcAttr = procAttrs
+	cmd.Env = append(os.Environ(), fmt.Sprintf("IP=%s", proc.ip.Ip))
+	fmt.Fprintf(logger, "Starting %s %s on %s\n", name, cmdline, proc.ip.Ip)
 
-	if proc.setPort {
-		cmd.Env = append(os.Environ(), fmt.Sprintf("PORT=%d", proc.port))
-		fmt.Fprintf(logger, "Starting %s on port %d\n", name, proc.port)
-	}
 	if err := cmd.Start(); err != nil {
 		select {
 		case errCh <- err:
@@ -34,6 +43,7 @@ func spawnProc(name string, errCh chan<- error) {
 		fmt.Fprintf(logger, "Failed to start %s: %s\n", name, err)
 		return
 	}
+
 	proc.cmd = cmd
 	proc.stoppedBySupervisor = false
 	proc.mu.Unlock()
@@ -79,7 +89,7 @@ func stopProc(name string, signal os.Signal) error {
 		proc.mu.Lock()
 		defer proc.mu.Unlock()
 		if proc.cmd != nil {
-			err = killProc(proc.cmd.Process)
+			err = terminateProc(proc, syscall.SIGKILL)
 		}
 	})
 	proc.cond.Wait()
@@ -88,11 +98,11 @@ func stopProc(name string, signal os.Signal) error {
 }
 
 // start specified proc. if proc is started already, return nil.
-func startProc(name string, wg *sync.WaitGroup, errCh chan<- error) error {
-	proc := findProc(name)
-	if proc == nil {
-		return errors.New("unknown name: " + name)
-	}
+func startProc(proc *procInfo, wg *sync.WaitGroup, errCh chan<- error) error {
+	//proc := findProc(name)
+	//if proc == nil {
+	//	return errors.New("unknown name: " + name)
+	//}
 
 	proc.mu.Lock()
 	if proc.cmd != nil {
@@ -104,7 +114,7 @@ func startProc(name string, wg *sync.WaitGroup, errCh chan<- error) error {
 		wg.Add(1)
 	}
 	go func() {
-		spawnProc(name, errCh)
+		spawnProc(proc, errCh)
 		if wg != nil {
 			wg.Done()
 		}
@@ -113,7 +123,7 @@ func startProc(name string, wg *sync.WaitGroup, errCh chan<- error) error {
 	return nil
 }
 
-// restart specified proc.
+/* / restart specified proc.
 func restartProc(name string) error {
 	err := stopProc(name, nil)
 	if err != nil {
@@ -121,6 +131,7 @@ func restartProc(name string) error {
 	}
 	return startProc(name, nil, nil)
 }
+*/
 
 // stopProcs attempts to stop every running process and returns any non-nil
 // error, if one exists. stopProcs will wait until all procs have had an
@@ -136,15 +147,35 @@ func stopProcs(sig os.Signal) error {
 	return err
 }
 
-// spawn all procs.
-func startProcs(sc <-chan os.Signal, rpcCh <-chan *rpcMessage, exitOnError bool) error {
+// start all procs.
+func startAllProcs(sc <-chan os.Signal, rpcCh <-chan *rpcMessage, exitOnError bool) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, 1)
 
-	for _, proc := range procs {
-		startProc(proc.name, &wg, errCh)
-	}
+	if len(FlagIp) > 0 {
+		for _, proc := range procs {
+			proc.ip = &UIP{Ip: FlagIp}
+			startProc(proc, &wg, errCh)
+		}
+	} else {
+		nics, err := LocalAddresses(FlagEth)
 
+		if err != nil {
+			Panic("start LocalAddresses(): ", err)
+		}
+		if len(nics) == 0 {
+			Panic("start LocalAddresses() is empty!")
+		}
+
+		for _, ips := range nics {
+			for _, ip := range ips {
+				for _, proc := range procs {
+					proc.ip = ip
+					startProc(proc, &wg, errCh)
+				}
+			}
+		}
+	}
 	allProcsDone := make(chan struct{}, 1)
 	go func() {
 		wg.Wait()
@@ -178,4 +209,3 @@ func startProcs(sc <-chan os.Signal, rpcCh <-chan *rpcMessage, exitOnError bool)
 		}
 	}
 }
-*/

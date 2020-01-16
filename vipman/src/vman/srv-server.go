@@ -7,7 +7,6 @@ import (
 	"net/rpc"
 )
 
-
 type EchoArgs struct {
 	Request string
 }
@@ -17,13 +16,13 @@ type Echo string
 const ECHO_M = "Echo.Handler"
 
 func (t *Echo) Handle(args *EchoArgs, reply *string) error {
-	*reply = "reply: "+args.Request
+	*reply = "reply: " + args.Request
 	return nil
 }
 
 var startedRpc = false
 
-func RpcInit(){
+func RpcInit() {
 	rpc.Register(new(Echo))
 	rpc.HandleHTTP()
 	l, e := net.Listen("tcp", "127.0.0.1:12345")
@@ -33,5 +32,5 @@ func RpcInit(){
 	startedRpc = true
 	log.Print("listen....\n")
 	// go background
- 	http.Serve(l, nil)
+	http.Serve(l, nil)
 }

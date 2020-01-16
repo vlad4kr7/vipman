@@ -8,8 +8,12 @@ import (
 	"strings"
 )
 
-var FlagEth, FlagProcfile, FlagBaseDir, FlagPort, FlagParent, FlagSet, FlagIp string
-var FlagClean, FlagVerbose bool
+const DEF_RPC_PORT = 17654
+
+var FlagEth, FlagProcfile, FlagBaseDir, FlagParent, FlagSet, FlagIp string
+var FlagPArent, FlagChild, FlagProxy string
+var FlagClean, FlagVerbose, FlogTime bool
+var FlagPort int
 
 func Match(a, b string) bool {
 	lena := len(a) - 1

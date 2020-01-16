@@ -10,12 +10,10 @@ import (
 )
 
 func Prepare() {
-	if runtime.GOOS != "linux" {
-		Panic("prepare command use 'ip link add' and 'ip show' which is available only on linux")
-	}
-	//    if len(FlagEth) ==0 &&
 	if len(FlagSet) == 0 && !FlagClean {
 		prepareShow()
+	} else if runtime.GOOS != "linux" {
+		Panic("prepare command use 'ip link add' and 'ip show' which is available only on linux")
 	} else if len(FlagSet) != 0 && FlagClean {
 		Panic("--set and --clean NOT ALLOWED! Check help: 'vipman prepare -h' for details")
 	} else if len(FlagSet) != 0 {

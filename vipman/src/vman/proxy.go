@@ -4,11 +4,22 @@ import (
 	_ "golang.org/x/net/http/httpproxy"
 )
 
-func Pause() {
+func Proxy() {
 	Panic("")
 
 }
-func Resume() {
+
+func pause() {
+	Panic("")
+
+}
+
+func resume() {
+	Panic("")
+
+}
+
+func list() {
 	Panic("")
 
 }
