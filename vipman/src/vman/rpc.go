@@ -1,8 +1,8 @@
 /*
 Author: Yasuhiro Matsumoto (a.k.a mattn)
-Origin: https://github.com/mattn/goreman
+Origin: https://github.com/mattn/VipmanRPC
 Licence: MIT
-Changes: package name, and many
+Changes: alot
 Changed by Vlad Krinitsyn
 */
 package vman
@@ -13,15 +13,12 @@ import (
 	"fmt"
 	"net"
 	"net/rpc"
-	"os"
 	"sync"
 	"time"
 )
 
-// Goreman is RPC server
-type Goreman struct {
-	rpcChan chan<- *rpcMessage
-}
+// VipmanRPC is RPC server
+type VipmanRPC struct{} // rpcChan chan<- *rpcMessage
 
 type rpcMessage struct {
 	Msg  string
@@ -30,86 +27,8 @@ type rpcMessage struct {
 	ErrCh chan error
 }
 
-/*
-// Start do start
-func (r *Goreman) Start(args []string, ret *string) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = r.(error)
-		}
-	}()
-	for _, arg := range args {
-		if err = startProc(arg, nil); err != nil {
-			break
-		}
-	}
-	return err
-}
-
-// Stop do stop
-func (r *Goreman) Stop(args []string, ret *string) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = r.(error)
-		}
-	}()
-	errChan := make(chan error, 1)
-	r.rpcChan <- &rpcMessage{
-		Msg:   "stop",
-		Args:  args,
-		ErrCh: errChan,
-	}
-	err = <-errChan
-	return
-}
-
-// StopAll do stop all
-func (r *Goreman) StopAll(args []string, ret *string) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = r.(error)
-		}
-	}()
-	for _, proc := range procs {
-		if err = stopProc(proc.name, nil); err != nil {
-			break
-		}
-	}
-	return err
-}
-
-// Restart do restart
-func (r *Goreman) Restart(args []string, ret *string) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = r.(error)
-		}
-	}()
-	for _, arg := range args {
-		if err = restartProc(arg); err != nil {
-			break
-		}
-	}
-	return err
-}
-
-// RestartAll do restart all
-func (r *Goreman) RestartAll(args []string, ret *string) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = r.(error)
-		}
-	}()
-	for _, proc := range procs {
-		if err = restartProc(proc.name); err != nil {
-			break
-		}
-	}
-	return err
-}
-
-// List do list
-func (r *Goreman) List(args []string, ret *string) (err error) {
+// TODO List of child statuses
+func (r *VipmanRPC) List(args []string, ret *string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -122,69 +41,59 @@ func (r *Goreman) List(args []string, ret *string) (err error) {
 	return err
 }
 
-// Status do status
-func (r *Goreman) Status(args []string, ret *string) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = r.(error)
-		}
-	}()
-	*ret = ""
+func (r *VipmanRPC) Status(args []string, ret *string) (err error) {
+	rs := startedInfo.String()
+	total := 0
 	for _, proc := range procs {
-		if proc.cmd != nil {
-			*ret += "*" + proc.name + "\n"
-		} else {
-			*ret += " " + proc.name + "\n"
+		total += len(proc.list)
+	}
+	rs += fmt.Sprintf(", started processes: %d", total)
+	for _, proc := range procs {
+		for _, p := range proc.list {
+			pid := -1
+			if p.cmd != nil {
+				pid = p.cmd.Process.Pid
+			}
+			rs += fmt.Sprintf("\n %s [%s] %s, pid %d", proc.name, p.ip.Ip, p.cmd, pid)
 		}
 	}
+	*ret = rs
 	return err
 }
 
-// command: run.
-func run(cmd string, args []string, serverPort uint) error {
-	client, err := rpc.Dial("tcp", defaultServer(serverPort))
+func RPCClientCall(cmd, ip string, port int, args *[]string) error {
+	client, err := rpc.Dial("tcp", fmt.Sprintf("%s:%d", defaultClnAddr(ip), port))
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 	var ret string
-	switch cmd {
-	case "start":
-		return client.Call("Goreman.Start", args, &ret)
-	case "stop":
-		return client.Call("Goreman.Stop", args, &ret)
-	case "stop-all":
-		return client.Call("Goreman.StopAll", args, &ret)
-	case "restart":
-		return client.Call("Goreman.Restart", args, &ret)
-	case "restart-all":
-		return client.Call("Goreman.RestartAll", args, &ret)
-	case "list":
-		err := client.Call("Goreman.List", args, &ret)
-		fmt.Print(ret)
-		return err
-	case "status":
-		err := client.Call("Goreman.Status", args, &ret)
-		fmt.Print(ret)
-		return err
+	//Log("%s> %v", cmd, args)
+	client.Call("VipmanRPC."+cmd, args, &ret)
+	if FlagVerbose {
+		fmt.Printf("RPC[%d].%s \n", port, cmd)
 	}
-	return errors.New("unknown command")
+	fmt.Println(ret)
+	return nil
 }
-*/
-func defaultAddr() string {
-	if s, ok := os.LookupEnv("GOREMAN_RPC_ADDR"); ok {
-		return s
+
+func defaultClnAddr(ip string) string {
+	if len(ip) == 0 {
+		return "127.0.0.1"
+	} else {
+		return ip
 	}
+}
+
+func defaultBindAddr() string {
 	return "0.0.0.0"
 }
 
 // start rpc server.
-func startRpcServer(ctx context.Context, rpcChan chan<- *rpcMessage) error {
-	gm := &Goreman{
-		rpcChan: rpcChan,
-	}
-	rpc.Register(gm)
-	server, err := net.Listen("tcp", fmt.Sprintf("%s:%d", defaultAddr(), uint(FlagPort)))
+func startRpcServer(flagArgs *StartInfo, ctx context.Context, rpcChan chan<- *rpcMessage) error {
+	rpc.Register(&VipmanRPC{})
+	server, err := net.Listen("tcp", fmt.Sprintf("%s:%d", defaultBindAddr(), flagArgs.FlagPort))
+	Proxy(flagArgs)
 	if err != nil {
 		return err
 	}

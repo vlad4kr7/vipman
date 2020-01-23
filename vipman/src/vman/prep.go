@@ -9,24 +9,24 @@ import (
 	"strings"
 )
 
-func Prepare() {
-	if len(FlagSet) == 0 && !FlagClean {
-		prepareShow()
+func Prepare(flagEth, flagSet string, flagClean bool) {
+	if len(flagSet) == 0 && !flagClean {
+		prepareShow(flagEth)
 	} else if runtime.GOOS != "linux" {
 		Panic("prepare command use 'ip link add' and 'ip show' which is available only on linux")
-	} else if len(FlagSet) != 0 && FlagClean {
+	} else if len(flagSet) != 0 && flagClean {
 		Panic("--set and --clean NOT ALLOWED! Check help: 'vipman prepare -h' for details")
-	} else if len(FlagSet) != 0 {
-		prepareAdd()
-		prepareShow()
-	} else if FlagClean {
-		prepareDelete()
-		prepareShow()
+	} else if len(flagSet) != 0 {
+		prepareAdd(flagEth, flagSet)
+		prepareShow(flagEth)
+	} else if flagClean {
+		prepareDelete(flagEth)
+		prepareShow(flagEth)
 	}
 }
 
-func prepareShow() {
-	lst, err := LocalAddresses(FlagEth)
+func prepareShow(flagEth string) {
+	lst, err := LocalAddresses(flagEth)
 	if err != nil {
 		Log("LocalAddresses(): ", err)
 	} else {
@@ -41,12 +41,12 @@ func prepareShow() {
 	}
 }
 
-func prepareAdd() {
-	lst, err := LocalAddresses(FlagEth)
+func prepareAdd(flagEth, flagSet string) {
+	lst, err := LocalAddresses(flagEth)
 	if err != nil {
 		Panic("PrepareAdd: LocalAddresses: Err: %v\n", err)
 	} else {
-		max, err := strconv.Atoi(FlagSet)
+		max, err := strconv.Atoi(flagSet)
 		if err != nil {
 			Panic("PrepareAdd: FlagAdd: %v\n", err)
 			return
@@ -116,8 +116,8 @@ func prepareAdd() {
 	}
 }
 
-func prepareDelete() {
-	lst, err := LocalAddresses(FlagEth)
+func prepareDelete(flagEth string) {
+	lst, err := LocalAddresses(flagEth)
 	if err != nil {
 		Panic("prepareDelete: LocalAddresses: Err: %v\n", err)
 	} else {

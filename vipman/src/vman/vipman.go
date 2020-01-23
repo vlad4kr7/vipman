@@ -3,38 +3,50 @@ package vman
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/joho/godotenv"
+	_ "github.com/spf13/cobra"
 	_ "golang.org/x/sys/unix"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
+	_ "os/signal"
 	"regexp"
 	_ "runtime"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 )
+
+type proc struct {
+	ip                  *UIP
+	colorIndex          int
+	cmd                 *exec.Cmd
+	pi                  *procInfo
+	stoppedBySupervisor bool
+	cmdLine             string // as on start
+	errCh               chan<- error
+	logger              *clogger
+	mu                  sync.Mutex
+}
+
+func (p proc) appName() string {
+	return strings.SplitN(p.cmdLine, " ", 1)[0]
+}
 
 // -- process information structure.
 type procInfo struct {
-	name    string
-	cmdline string
-	cmd     *exec.Cmd
-
-	ip *UIP
-	//	port       uint
-	//	setPort    bool
-
-	colorIndex int
-
-	// True if we called stopProc to kill the process, in which case an
-	// *os.ExitError is not the fault of the subprocess
+	name                string
+	cmdline             string // as in Proc file
+	list                []*proc
 	stoppedBySupervisor bool
+	mainColorIndex      int
+}
 
-	mu      sync.Mutex
-	cond    *sync.Cond
-	waitErr error
+func (i procInfo) logName(f *StartInfo, ip *UIP) string {
+	return fmt.Sprintf("%s [%s]", i.name, ip.Ip[f.NameDiff:])
 }
 
 var mu sync.Mutex
@@ -46,11 +58,26 @@ var maxProcNameLength = 0
 
 var re = regexp.MustCompile(`\$([a-zA-Z]+[a-zA-Z0-9_]+)`)
 
+type StartInfo struct {
+	FlagProcfile                string
+	FlagPort                    int
+	FlagEth, FlagIp, FlagParent string
+	FlagBaseDir, FlagProxy      string
+	Interfaces                  map[string][]*UIP
+	NameDiff                    int
+}
+
+func (si *StartInfo) String() string {
+	return fmt.Sprintf("Procfile: %s, RPC port: %d, eth: %s, ip: %s, parent: %s, baseDir: %s, proxy: %s", si.FlagProcfile, si.FlagPort, si.FlagEth, si.FlagIp, si.FlagParent, si.FlagBaseDir, si.FlagProxy)
+}
+
+var startedInfo *StartInfo
+
 // read Procfile and parse it.
-func readProcfile() error {
-	content, err := ioutil.ReadFile(FlagProcfile)
+func readProcfile(flagProcfile string) {
+	content, err := ioutil.ReadFile(flagProcfile)
 	if err != nil {
-		return err
+		Panic("readProcfile", err)
 	}
 	mu.Lock()
 	defer mu.Unlock()
@@ -62,28 +89,11 @@ func readProcfile() error {
 		if len(tokens) != 2 || tokens[0][0] == '#' {
 			continue
 		}
-
 		k, v := strings.TrimSpace(tokens[0]), strings.TrimSpace(tokens[1])
 
-		/*
-			if runtime.GOOS == "windows" {
-				v = re.ReplaceAllStringFunc(v, func(s string) string {
-					return "%" + s[1:] + "%"
-				})
-			}
-		*/
+		proc := &procInfo{name: k, cmdline: v, mainColorIndex: index, list: []*proc{}}
+		//proc.cond = sync.NewCond(&proc.mu)
 
-		proc := &procInfo{name: k, cmdline: v, colorIndex: index}
-
-		/*
-			if *setPorts == true {
-				proc.setPort = true
-				proc.port = cfg.BasePort
-				cfg.BasePort += 100
-			}
-		*/
-
-		proc.cond = sync.NewCond(&proc.mu)
 		procs = append(procs, proc)
 		if len(k) > maxProcNameLength {
 			maxProcNameLength = len(k)
@@ -94,9 +104,23 @@ func readProcfile() error {
 		}
 	}
 	if len(procs) == 0 {
-		return errors.New("no valid entry")
+		Panic("readProcfile: no valid entry")
 	}
-	return nil
+}
+
+// all procs OR active Only process
+func totalProcs(all bool) int {
+	i := 0
+	mu.Lock()
+	defer mu.Unlock()
+	for _, proc := range procs {
+		for _, p := range proc.list {
+			if all || p.cmd != nil {
+				i++
+			}
+		}
+	}
+	return i
 }
 
 func findProc(name string) *procInfo {
@@ -111,132 +135,231 @@ func findProc(name string) *procInfo {
 	return nil
 }
 
-//var colors []string
-/*
-type config struct {
-	Procfile string `yaml:"procfile"`
-	// Port for RPC server
-	Port     uint   `yaml:"port"`
-	BaseDir  string `yaml:"basedir"`
-	BasePort uint   `yaml:"baseport"`
-	Args     []string
-	// If true, exit the supervisor process if a subprocess exits with an error.
-	ExitOnError bool `yaml:"exit_on_error"`
-}
-*/
-
-func Start() {
-	err := readProcfile()
-	if err != nil {
-		Panic("readProcfile", err)
-	}
-	c := notifyCh()
-	start(context.Background(), c)
-}
-
-func start(ctx context.Context, sig <-chan os.Signal) error {
-	/*
-		err := readProcfile(cfg)
-		if err != nil {
-			return err
-		}
-	*/
-	ctx, cancel := context.WithCancel(ctx)
+func Start(flagArgs *StartInfo) {
+	startedInfo = flagArgs
+	readProcfile(flagArgs.FlagProcfile)
+	sigChan := notifyCh()
+	ctx, cancel := context.WithCancel(context.Background())
 	// Cancel the RPC server when procs have returned/errored, cancel the
 	// context anyway in case of early return.
 	defer cancel()
-
-	/*
-		if len(cfg.Args) > 1 {
-			tmp := make([]*procInfo, 0, len(cfg.Args[1:]))
-			maxProcNameLength = 0
-			for _, v := range cfg.Args[1:] {
-				proc := findProc(v)
-				if proc == nil {
-					return errors.New("unknown proc: " + v)
-				}
-				tmp = append(tmp, proc)
-				if len(v) > maxProcNameLength {
-					maxProcNameLength = len(v)
-				}
-			}
-
-			mu.Lock()
-			procs = tmp
-			mu.Unlock()
-		}
-	*/
-
 	godotenv.Load()
 	rpcChan := make(chan *rpcMessage, 10)
-	go startRpcServer(ctx, rpcChan)
-
-	procsErr := startAllProcs(sig, rpcChan, true)
-	return procsErr
+	nics, err := LocalAddresses(flagArgs.FlagEth)
+	if err != nil {
+		Panic("start LocalAddresses(): ", err)
+	}
+	if len(nics) == 0 {
+		Panic("start LocalAddresses() is empty!")
+	}
+	flagArgs.Interfaces = nics
+	var ips []string
+	for _, e := range nics {
+		for _, i := range e {
+			ips = append(ips, i.Ip)
+		}
+	}
+	flagArgs.NameDiff = compMax(ips)
+	go startRpcServer(flagArgs, ctx, rpcChan)
+	startAllProcs(flagArgs, sigChan, rpcChan)
 }
 
-func Stop() {
-	Panic("")
-
+func (r *VipmanRPC) Stop(args []string, ret *string) (err error) {
+	*ret = "Stop1 - Not implemented"
+	return errors.New(*ret)
 }
 
-func StopAll() {
-	Panic("")
-
+func (r *VipmanRPC) StopAll(args []string, ret *string) (err error) {
+	err = stopProcs(os.Interrupt)
+	if err != nil {
+		*ret = err.Error()
+	} else {
+		*ret = "stopped"
+	}
+	return err
 }
 
-func Restart() {
-	Panic("")
-
+func (r *VipmanRPC) Restart(args []string, ret *string) (err error) {
+	flagIp := args[0]
+	flagProcName := args[1]
+	*ret = "requested"
+	for _, proc := range procs {
+		if proc.name == flagProcName {
+			for _, p := range proc.list {
+				if flagIp == p.ip.Ip && p.cmd != nil {
+					*ret = "restarting: " + p.appName()
+					go spawnProc(p, true)
+				}
+			}
+		}
+	}
+	return errors.New(*ret)
 }
 
-func RestartAll() {
-	Panic("")
-
+func (r *VipmanRPC) RestartAll(args []string, ret *string) (err error) {
+	*ret = "Restart - Not implemented"
+	return errors.New(*ret)
 }
 
 const sigint = syscall.SIGINT
 const sigterm = syscall.SIGTERM
 const sighup = syscall.SIGHUP
 
+// Register system interrupt chanel
 func notifyCh() <-chan os.Signal {
 	sc := make(chan os.Signal, 10)
 	signal.Notify(sc, sigterm, sigint, sighup)
 	return sc
 }
 
-var cmdStart = []string{"/bin/sh", "-c"}
-
-//var procAttrs = &unix.SysProcAttr{Setpgid: true}
-
-func terminateProc(proc *procInfo, signal os.Signal) error {
-	return proc.cmd.Process.Signal(signal)
-	/*
-		p := proc.cmd.Process
-		if p == nil {
-			return nil
-		}
-
-		pgid, err := unix.Getpgid(p.Pid)
+// spawnProc starts the specified proc, and returns any error from running it.
+func spawnProc(p *proc, kill bool) {
+	if kill && p.cmd != nil {
+		err := terminateProc(p, os.Interrupt)
 		if err != nil {
-			return err
+			Log("Wont stop - wont start %s", err.Error())
 		}
-
-		// use pgid, ref: http://unix.stackexchange.com/questions/14815/process-descendants
-		pid := p.Pid
-		if pgid == p.Pid {
-			pid = -1 * pid
+	}
+	p.mu.Lock()
+	cs := strings.Split(p.cmdLine, " ")
+	cmd := exec.Command(cs[0], cs[1:]...)
+	cmd.Stdin = nil
+	cmd.Stdout = p.logger
+	cmd.Stderr = p.logger
+	//	cmd.SysProcAttr = procAttrs
+	cmd.Env = append(os.Environ(), fmt.Sprintf("IP=%s", p.ip.Ip))
+	fmt.Fprintf(p.logger, "Starting %s %s on %s\n", p.pi.name, p.cmdLine, p.ip.Ip)
+	if err := cmd.Start(); err != nil {
+		select {
+		case p.errCh <- err:
+		default:
 		}
-
-		target, err := os.FindProcess(pid)
-		if err != nil {
-			return err
-		}
-		return target.Signal(signal)
-	*/
+		fmt.Fprintf(p.logger, "Failed to start %s: %s\n", p.pi.name, err)
+		p.mu.Unlock()
+		return
+	}
+	p.cmd = cmd
+	p.mu.Unlock()
+	err := cmd.Wait()
+	p.cmd = nil
+	if err != nil {
+		fmt.Fprintf(p.logger, "Terminating %s\n", err)
+	} else {
+		err = errors.New("stub")
+	}
+	fmt.Fprint(p.logger, "Terminated\n")
+	p.errCh <- err
 }
 
-// killProc kills the proc with pid pid, as well as its children.
-//func killProc(process *os.Process) error {
-//	return unix.Kill(-1*process.Pid, unix.SIGKILL)
-//}
+func stopProcByName(name string) error {
+	Log("stopProcByName: %s", name)
+	return stopProc(findProc(name), os.Interrupt)
+}
+
+// StopRC the specified proc, issuing os.Kill if it does not terminate within 10
+// seconds. If signal is nil, os.Interrupt is used.
+func stopProc(proc *procInfo, signal os.Signal) error {
+	if signal == nil {
+		signal = os.Interrupt
+	}
+	if proc == nil {
+		return errors.New("unknown proc to stop")
+	}
+	if len(proc.list) == 0 {
+		return nil
+	}
+	proc.stoppedBySupervisor = true
+
+	var em []error
+	for _, p := range proc.list {
+		p.stoppedBySupervisor = true
+
+		err := terminateProc(p, signal)
+		if err != nil {
+			em = append(em, err)
+		}
+	}
+	if len(em) > 0 {
+		emMsg := ""
+		for i, e := range em {
+			if i > 0 {
+				emMsg += ", "
+			}
+			emMsg += e.Error()
+		}
+		return errors.New(emMsg)
+	}
+
+	return nil
+}
+
+// start specified proc. if proc is started already, return nil.
+func startProc(flagArgs *StartInfo, id int, pi *procInfo, ip *UIP, errCh chan<- error) {
+	p := &proc{ip: ip, colorIndex: pi.mainColorIndex, pi: pi, errCh: errCh}
+	pi.list = append(pi.list, p)
+	p.logger = createLogger(p.pi.logName(flagArgs, ip), p.colorIndex, id)
+	cmdline := strings.Replace(p.pi.cmdline, "$IP", p.ip.Ip, 1)
+	if !(cmdline[0] == '.' || cmdline[0] == '/') {
+		cmdline = flagArgs.FlagBaseDir + "/" + cmdline
+	}
+	p.cmdLine = cmdline
+	go spawnProc(p, false)
+}
+
+// stopProcs attempts to stop every running process and returns any non-nil
+// error, if one exists. stopProcs will wait until all procs have had an
+// opportunity to stop.
+func stopProcs(sig os.Signal) error {
+	var err error
+	Log("Stopping all [%d] procs", len(procs))
+	for _, proc := range procs {
+		stopErr := stopProc(proc, sig)
+		if stopErr != nil {
+			err = stopErr
+		}
+	}
+	return err
+}
+
+// start all procs.
+func startAllProcs(flagArgs *StartInfo, sc <-chan os.Signal, rpcCh <-chan *rpcMessage) {
+	errCh := make(chan error, 1)
+	if len(flagArgs.FlagIp) > 0 {
+		for _, proc := range procs {
+			ip := &UIP{Ip: flagArgs.FlagIp}
+			startProc(flagArgs, 0, proc, ip, errCh)
+		}
+	} else {
+		cnt := 0
+		for _, ips := range flagArgs.Interfaces {
+			for _, ip := range ips {
+				for _, proc := range procs {
+					startProc(flagArgs, cnt, proc, ip, errCh)
+					cnt++
+				}
+			}
+		}
+	}
+	time.Sleep(time.Second)
+	for totalProcs(false) > 0 {
+		_ = <-errCh
+	}
+}
+
+func terminateProc(proc *proc, signal os.Signal) error {
+	proc.mu.Lock()
+	defer proc.mu.Unlock()
+	if proc.cmd == nil || proc.cmd.ProcessState.Exited() {
+		proc.cmd = nil
+		return nil
+	}
+	err := proc.cmd.Process.Signal(signal)
+	if err != nil {
+		return err
+	}
+	timeout := time.AfterFunc(10*time.Second, func() {
+		err = terminateProc(proc, syscall.SIGKILL)
+	})
+	timeout.Stop()
+	return err
+}

@@ -1,1 +1,4 @@
-web: echo.exe -b 10 -p 8888 -i $IP
+web1: echo.exe -p 8818 --ip $IP
+#web2: echo.exe -b 10 -p 8817 --ip $IP
+
+# tasklist /fi "ImageName  eq echo.exe " then   taskkill /f /pid 9828

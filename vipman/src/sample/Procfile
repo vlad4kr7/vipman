@@ -1,1 +1,1 @@
-web: echo -b 10 -p 8888 -i $IP
+web: wecho -b 10 -p 8818 --ip $IP

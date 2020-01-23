@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -134,9 +135,12 @@ func (l *clogger) Write(p []byte) (int, error) {
 }
 
 // create logger instance.
-func createLogger(name string, colorIndex int) *clogger {
+func createLogger(name string, colorIndex, colorShift int) *clogger {
 	mutex.Lock()
 	defer mutex.Unlock()
+	if colorShift >= len(colors) {
+		colorShift = int(math.Mod(float64(colorShift), float64(len(colors))))
+	}
 	l := &clogger{idx: colorIndex, name: name, writes: make(chan []byte), done: make(chan struct{}), timeout: 2 * time.Millisecond}
 	go l.writeLines()
 	return l

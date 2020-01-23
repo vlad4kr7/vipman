@@ -14,9 +14,7 @@ func LocalAddresses(match string) (map[string][]*UIP, error) {
 	if err != nil {
 		return nil, err
 	}
-	if FlagVerbose {
-		Log("localAddresses matching to [%s] on OS: %s", FlagEth, runtime.GOOS)
-	}
+	LogVerbose("localAddresses matching to [%s] on OS: %s", match, runtime.GOOS)
 	resp := make(map[string][]*UIP)
 	for _, i := range ifaces {
 		//i.HardwareAddr.String()
@@ -92,9 +90,7 @@ func initGoIP(id int, name string, eth net.IP) *UIP {
 
 func callUip(eth string, mapa map[string][]*UIP) { //(string, []*UIP) {
 	cmd := exec.Command("ip", "a", "show", "dev", eth)
-	if FlagVerbose {
-		Log("exec %s", cmd.String())
-	}
+	LogVerbose("exec %s", cmd.String())
 	//	resp := []*UIP{}
 	var out bytes.Buffer
 	cmd.Stdout = &out

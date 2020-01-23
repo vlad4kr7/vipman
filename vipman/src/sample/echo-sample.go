@@ -16,7 +16,7 @@ var flagIP string
 var flagHertbeat, flagPort int
 
 func echoHandler(c echo.Context) error {
-	return c.String(http.StatusOK, "ok, "+c.Request().RequestURI)
+	return c.String(http.StatusOK, "ok, "+c.Request().RequestURI+"\n")
 }
 
 func heartbeat() {
