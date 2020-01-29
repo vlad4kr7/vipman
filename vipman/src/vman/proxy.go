@@ -153,7 +153,10 @@ func Parent(flagArgs *StartInfo) {
 			}
 		}
 		LogVerbose("Registering on parent %s:%d for proxying: %s %s \n", flagArgs.FlagParent, flagArgs.FlagPort, ips, flagArgs.FlagProxy)
-		RPCClientCallNoPrint("Register", flagArgs.FlagParent, flagArgs.FlagPort, 5, &[]string{ips, flagArgs.FlagProxy})
+		for _, err := RPCClientCallNoPrint("Register", flagArgs.FlagParent, flagArgs.FlagPort, &[]string{ips, flagArgs.FlagProxy}); err != nil; {
+			Log("Repeating RPC call to Register Proxy after %d sec\n", SleepBeforeRepeatSec)
+			time.Sleep(SleepBeforeRepeatSec * time.Second)
+		}
 		LogVerbose("Registered on: %s\n", flagArgs.FlagParent)
 	}
 }

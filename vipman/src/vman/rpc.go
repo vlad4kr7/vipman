@@ -27,11 +27,16 @@ type rpcMessage struct {
 	ErrCh chan error
 }
 
+//List suppress args
 func (r *VipmanRPC) List(args []string, ret *string) (err error) {
 	*ret = ""
 	flagPort := DEF_RPC_PORT
 	for _, proc := range childs {
-		*ret += "[" + proc.Ip + "]\n" + RPCClientCallNoPrint("Status", proc.Ip, flagPort, 0, &[]string{}) + "\n"
+		str, err := RPCClientCallNoPrint("Status", proc.Ip, flagPort, &[]string{})
+		if err != nil {
+			str = err.Error()
+		}
+		*ret += "[" + proc.Ip + "]\n" + str + "\n"
 	}
 	fmt.Println(ret)
 	return err
@@ -58,26 +63,20 @@ func (r *VipmanRPC) Status(args []string, ret *string) (err error) {
 }
 
 func RPCClientCallNA(cmd string, port int) {
-	Log(RPCClientCallNoPrint(cmd, "", port, 0, &[]string{}))
+	Log(RPCClientCallNoPrint(cmd, "", port, &[]string{}))
 }
 
 func RPCClientCall(cmd, ip string, port int, args *[]string) {
-	Log(RPCClientCallNoPrint(cmd, ip, port, 0, args))
+	Log(RPCClientCallNoPrint(cmd, ip, port, args))
 }
 
 const SleepBeforeRepeatSec = 10
 
-func RPCClientCallNoPrint(cmd, ip string, port, repeat int, args *[]string) string {
+func RPCClientCallNoPrint(cmd, ip string, port int, args *[]string) (string, error) {
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", defaultClnAddr(ip), port), SleepBeforeRepeatSec/2*time.Second)
 	if err != nil {
 		Log("ERROR dialing %s %s:%d : %v \n", cmd, ip, port, err)
-		if repeat > 0 {
-			Log("Repeating RPC call %s after %d sec\n", cmd, SleepBeforeRepeatSec)
-			time.Sleep(SleepBeforeRepeatSec * time.Second)
-			return RPCClientCallNoPrint(cmd, ip, port, repeat-1, args)
-		} else {
-			return err.Error()
-		}
+		return "", err
 	}
 	client := rpc.NewClient(conn)
 	defer client.Close()
@@ -85,12 +84,12 @@ func RPCClientCallNoPrint(cmd, ip string, port, repeat int, args *[]string) stri
 	errc := client.Call("VipmanRPC."+cmd, args, &ret)
 	if errc != nil {
 		Log("RPC Call VipmanRPC.%s (%v) ERROR: %s\n", cmd, args, errc)
-		return errc.Error()
+		return "", errc
 	}
 	if FlagVerbose {
 		fmt.Printf("RPC[%d].%s \n", port, cmd)
 	}
-	return ret
+	return ret, nil
 }
 
 func defaultClnAddr(ip string) string {
@@ -107,7 +106,10 @@ func defaultBindAddr() string {
 
 // start rpc server.
 func startRpcServer(flagArgs *StartInfo, ctx context.Context, rpcChan chan<- *rpcMessage) error {
-	rpc.Register(&VipmanRPC{})
+	err := rpc.Register(&VipmanRPC{})
+	if err != nil {
+		return err
+	}
 	server, err := net.Listen("tcp", fmt.Sprintf("%s:%d", defaultBindAddr(), flagArgs.FlagPort))
 	Proxy(flagArgs)
 	if err != nil {
