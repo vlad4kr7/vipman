@@ -131,7 +131,7 @@ If either  --add and --clean flag set will fail.`,
 			Long: `Short status of a vipman processes including proxy and underlying vipmans.
 Returns OK and exit code 0 if no errors` + CLIENT,
 			Run: func(cmd *cobra.Command, args []string) {
-				vman.RPCClientCall("Status", "", flagPort, &[]string{})
+				vman.RPCClientCallNA("Status", flagPort)
 			},
 		}, []func(*cobra.Command) string{fFlagPort}, []int{}},
 		//---------------------------------------------------------------------------//
@@ -140,7 +140,7 @@ Returns OK and exit code 0 if no errors` + CLIENT,
 			Short: "List processes",
 			Long:  `Detailed list of processes uncluding underlying vipmans` + CLIENT,
 			Run: func(cmd *cobra.Command, args []string) {
-				vman.RPCClientCall("List", "", flagPort, &[]string{})
+				vman.RPCClientCallNA("List", flagPort)
 			},
 		}, []func(*cobra.Command) string{fFlagPort}, []int{}},
 		//---------------------------------------------------------------------------//
@@ -166,33 +166,25 @@ If --eth flag set, then will start on all IPs alias on all matching interfaces.
 `,
 			//Args: cobra.MinimumNArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-				vman.Start(&vman.StartInfo{flagProcfile, flagPort, flagEth, flagIp, flagParent, flagBaseDir, flagProxy, make(map[string][]*vman.UIP)}, 0)
+				vman.Start(&vman.StartInfo{flagProcfile, flagPort, flagEth, flagIp, flagParent, flagBaseDir, flagProxy, make(map[string][]*vman.UIP), 0})
 			},
 		}, []func(*cobra.Command) string{fFlagProcfile, fFlagPort, fFlagEth, fFlagIp, fFlagParent, fFlagBaseDir, fFlagProxy}, []int{0}},
 		//---------------------------------------------------------------------------//
 		CommandVO{&cobra.Command{
 			Use:   "stop",
 			Short: "Stop process on all nodes or all processes on IP or interface",
-			Long: `Stop process on all nodes:
- - like stop-all: this is a default action if no additional flag set
-OR All processes on IP:
- - set --ip flag 
-OR All  processes on interface:
- - set --eth flag
-` + CLIENT,
+			Long:  `Stop process by name or IP` + CLIENT,
 			Run: func(cmd *cobra.Command, args []string) {
-				vman.RPCClientCall("Stop", "", flagPort, &[]string{flagEth, flagIp})
+				vman.RPCClientCall("Stop", "", flagPort, &[]string{flagIp, flagProcName})
 			},
-		}, []func(*cobra.Command) string{fFlagPort, fFlagEth, fFlagIp}, []int{}},
+		}, []func(*cobra.Command) string{fFlagPort, fFlagIp, fFlagProcName}, []int{}},
 		//---------------------------------------------------------------------------//
 		CommandVO{&cobra.Command{
 			Use:   "stop-all",
 			Short: "Stop process on all nodes or all processes on IP or interface",
-			Long: `Stop all services on all vipman(s)
-
-` + CLIENT,
+			Long:  `Stop all services on all vipman(s)` + CLIENT,
 			Run: func(cmd *cobra.Command, args []string) {
-				vman.RPCClientCall("StopAll", "", flagPort, &[]string{})
+				vman.RPCClientCallNA("StopAll", flagPort)
 			},
 		}, []func(*cobra.Command) string{fFlagPort}, []int{}},
 		//---------------------------------------------------------------------------//
@@ -205,7 +197,7 @@ OR All  processes on interface:
 				vman.RPCClientCall("Restart", "", flagPort, &[]string{flagIp, flagProcName})
 			},
 		}, []func(*cobra.Command) string{fFlagPort, fFlagIp, fFlagProcName}, []int{1, 2}},
-		//---------------------------------------------------------------------------//
+		/* /---------------------------------------------------------------------------//
 		CommandVO{&cobra.Command{
 			Use:   "restart-all",
 			Short: "StopRC and start all with same set of settings",
@@ -214,5 +206,6 @@ OR All  processes on interface:
 				vman.RPCClientCall("RestartAll", "", flagPort, &[]string{flagEth, flagIp})
 			},
 		}, []func(*cobra.Command) string{fFlagPort, fFlagEth, fFlagIp}, []int{}},
+		*/
 	).Execute()
 }

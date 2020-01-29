@@ -13,9 +13,9 @@ func Prepare(flagEth, flagSet string, flagClean bool) {
 	if len(flagSet) == 0 && !flagClean {
 		prepareShow(flagEth)
 	} else if runtime.GOOS != "linux" {
-		Panic("prepare command use 'ip link add' and 'ip show' which is available only on linux")
+		Panic("prepare command use 'ip link add' and 'ip show' which is available only on %s\n", "linux")
 	} else if len(flagSet) != 0 && flagClean {
-		Panic("--set and --clean NOT ALLOWED! Check help: 'vipman prepare -h' for details")
+		Panic("--set and --clean NOT ALLOWED! Check help: '%s prepare -h' for details\n", "vipman")
 	} else if len(flagSet) != 0 {
 		prepareAdd(flagEth, flagSet)
 		prepareShow(flagEth)
@@ -53,10 +53,10 @@ func prepareAdd(flagEth, flagSet string) {
 		}
 		for n, e := range lst {
 			if len(e) == 0 {
-				Panic("No primary adapter for " + n)
+				Panic("No primary adapter for %s\n", n)
 			}
 			if e[0].IdNotParsed {
-				Panic("'ip link add ..." + n + "' NOR 'dhclient " + n + "' wont create an IP alias on WSL!")
+				Panic("'ip link add ...%s' NOR 'dhclient %s' wont create an IP alias on WSL!\n", n, n)
 				continue
 			}
 			for i := len(e); i <= max; i++ {
@@ -127,10 +127,10 @@ func prepareDelete(flagEth string) {
 		}
 		for n, e := range lst {
 			if len(e) == 0 {
-				Panic("No primary adapter for " + n)
+				Panic("No primary adapter for %s\n", n)
 			}
 			if e[0].IdNotParsed {
-				Panic("'ip a add ..." + n + "' NOR 'dhclient " + n + "' wont create an IP alias on WSL!")
+				Panic("'ip a add ...%s' NOR 'dhclient %s' wont create an IP alias on WSL!\n", n, n)
 				continue
 			}
 			for i := len(e) - 1; i > 0; i-- {

@@ -77,7 +77,7 @@ var startedInfo *StartInfo
 func readProcfile(flagProcfile string) {
 	content, err := ioutil.ReadFile(flagProcfile)
 	if err != nil {
-		Panic("readProcfile", err)
+		Panic("readProcfile: %s\n", err.Error())
 	}
 	mu.Lock()
 	defer mu.Unlock()
@@ -104,7 +104,7 @@ func readProcfile(flagProcfile string) {
 		}
 	}
 	if len(procs) == 0 {
-		Panic("readProcfile: no valid entry")
+		Panic("%s: no valid entry\n", "readProcfile")
 	}
 }
 
@@ -147,10 +147,10 @@ func Start(flagArgs *StartInfo) {
 	rpcChan := make(chan *rpcMessage, 10)
 	nics, err := LocalAddresses(flagArgs.FlagEth)
 	if err != nil {
-		Panic("start LocalAddresses(): ", err)
+		Panic("start LocalAddresses(): %s \n", err.Error())
 	}
 	if len(nics) == 0 {
-		Panic("start LocalAddresses() is empty!")
+		Panic("%s LocalAddresses() is empty!\n", "start")
 	}
 	flagArgs.Interfaces = nics
 	var ips []string
@@ -165,8 +165,20 @@ func Start(flagArgs *StartInfo) {
 }
 
 func (r *VipmanRPC) Stop(args []string, ret *string) (err error) {
-	*ret = "Stop1 - Not implemented"
-	return errors.New(*ret)
+	flagIp := args[0]
+	flagProcName := args[1]
+	*ret = ""
+	for _, proc := range procs {
+		if proc.name == flagProcName {
+			for _, p := range proc.list {
+				if flagIp == p.ip.Ip && p.cmd != nil {
+					*ret += "stopping: " + p.appName()
+					terminateProc(p, os.Interrupt)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (r *VipmanRPC) StopAll(args []string, ret *string) (err error) {
@@ -182,22 +194,17 @@ func (r *VipmanRPC) StopAll(args []string, ret *string) (err error) {
 func (r *VipmanRPC) Restart(args []string, ret *string) (err error) {
 	flagIp := args[0]
 	flagProcName := args[1]
-	*ret = "requested"
+	*ret = ""
 	for _, proc := range procs {
 		if proc.name == flagProcName {
 			for _, p := range proc.list {
 				if flagIp == p.ip.Ip && p.cmd != nil {
-					*ret = "restarting: " + p.appName()
+					*ret += "restarting: " + p.appName()
 					go spawnProc(p, true)
 				}
 			}
 		}
 	}
-	return errors.New(*ret)
-}
-
-func (r *VipmanRPC) RestartAll(args []string, ret *string) (err error) {
-	*ret = "Restart - Not implemented"
 	return errors.New(*ret)
 }
 

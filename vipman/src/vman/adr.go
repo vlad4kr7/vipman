@@ -40,7 +40,7 @@ func LocalAddresses(match string) (map[string][]*UIP, error) {
 func callGoIp(nic net.Interface, mapa map[string][]*UIP) {
 	adders, err := nic.Addrs()
 	if err != nil {
-		Panic(err.Error())
+		Panic("%s\n", err.Error())
 	}
 	// handle err
 	var resp []*UIP
@@ -96,7 +96,7 @@ func callUip(eth string, mapa map[string][]*UIP) { //(string, []*UIP) {
 	cmd.Stdout = &out
 	errcc := cmd.Run()
 	if errcc != nil {
-		Panic("ip show", errcc)
+		Panic("ip show %s \n", errcc.Error())
 	} else {
 		name := eth
 		var resp []*UIP

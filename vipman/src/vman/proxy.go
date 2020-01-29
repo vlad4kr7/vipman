@@ -11,24 +11,65 @@ import (
 	"time"
 )
 
+type proxyCmd struct {
+	flagChild,
+	flagProxyCmd,
+	flagProxy,
+	flagEth,
+	flagIp string
+}
+
+func (c proxyCmd) String() string {
+	return fmt.Sprintf("Child: %s, ProxyCmd: %s, FlagProxy: %s, FlagEth: %s, FlagIp: %s", c.flagChild, c.flagProxyCmd, c.flagProxy, c.flagEth, c.flagIp)
+}
+
+//If no --cmd flag, then list of proxy configurations
+//If no --child flags, then will list all child proxy configurations.
+//If --proxy set, then will override existing configuration` + CLIENT,
+
 // call by vman.RPCClientCall("Proxy", FlagPort,  [2]string{flagChild, flagProxyCmd, FlagProxy, FlagEth, FlagIp})
 func (r *VipmanRPC) Proxy(args []string, ret *string) (err error) {
-	flagChild := args[0]
-	flagProxyCmd := args[1]
-	flagProxy := args[2]
-	flagEth := args[3]
-	flagIp := args[4]
-	Log("flagChild: %s, flagProxyCmd: %s, FlagProxy: %s, FlagEth: %s, FlagIp: %s", flagChild, flagProxyCmd, flagProxy, flagEth, flagIp)
-	return errors.New("Not implemented")
+	pc := &proxyCmd{args[0], args[1], args[2], args[3], args[4]}
+	Log(pc.String())
+	if len(pc.flagProxyCmd) != 0 {
+		if pc.flagProxyCmd[0] == 'p' || pc.flagProxyCmd[0] == 'P' { // pause
+			pauseResume(true, pc.flagChild)
+		} else { // consider resume
+			pauseResume(false, pc.flagChild)
+		}
+	} else if len(pc.flagProxy) != 0 {
+		nics, err := LocalAddresses(pc.flagEth)
+		if err != nil {
+			return err
+		}
+		if len(nics) == 0 {
+			return errors.New("start LocalAddresses() is empty!")
+		}
+		var ips []string
+		for _, e := range nics {
+			for _, i := range e {
+				ips = append(ips, i.Ip)
+			}
+		}
+		Proxy(&StartInfo{"", DEF_RPC_PORT, pc.flagEth, pc.flagIp, "", "", pc.flagProxy, nics, compMax(ips)})
+	} else {
+		list(pc.flagChild)
+	}
+	return nil
 }
 
 type proxyDir struct {
 	Ip, PortDest, PortSrc string
 	proxy                 *httputil.ReverseProxy
+	pause                 bool
 }
 
 func (d proxyDir) String() interface{} {
-	return fmt.Sprintf("%s -> %s:%s", d.PortSrc, d.Ip, d.PortDest)
+	ret := fmt.Sprintf("%s -> %s:%s", d.PortSrc, d.Ip, d.PortDest)
+	if d.pause {
+		ret += " -paused"
+	}
+	return ret
 }
 
 var rnd = rand.New(rand.NewSource(time.Now().Unix())) // initialize local pseudorandom generator
@@ -62,15 +103,25 @@ func Proxy(flagArgs *StartInfo) {
 				portSrc := r.Host[strings.Index(r.Host, ":")+1:]
 				ps := proxyDirs[portSrc]
 				var proxies []*httputil.ReverseProxy
+				matched := 0
+				paused := 0
 				for _, p := range ps {
 					if portDest == p.PortDest && portSrc == p.PortSrc {
-						proxies = append(proxies, p.proxy)
+						matched++
+						if p.pause {
+							paused++
+						} else {
+							proxies = append(proxies, p.proxy)
+						}
 					}
 				}
 				if len(proxies) > 0 {
 					proxies[rnd.Intn(len(proxies))].ServeHTTP(w, r)
 				} else if len(ps) > 0 {
-					LogVerbose("No match proxy from list [%d] for map: %s -> %s", len(ps), portSrc, portDest)
+					LogVerbose("No match proxy from list [%d] for map: %s -> %s ", len(ps), portSrc, portDest)
+					if matched > 0 { //
+						LogVerbose("Total matched: %d, but all paused", matched)
+					}
 				}
 			})
 			go servProxy(ip)
@@ -101,7 +152,9 @@ func Parent(flagArgs *StartInfo) {
 				ips += i.ip.Ip
 			}
 		}
-		RPCClientCall("Register", flagArgs.FlagParent, flagArgs.FlagPort, &[]string{ips, flagArgs.FlagProxy})
+		LogVerbose("Registering on parent %s:%d for proxying: %s %s \n", flagArgs.FlagParent, flagArgs.FlagPort, ips, flagArgs.FlagProxy)
+		RPCClientCallNoPrint("Register", flagArgs.FlagParent, flagArgs.FlagPort, 5, &[]string{ips, flagArgs.FlagProxy})
+		LogVerbose("Registered on: %s\n", flagArgs.FlagParent)
 	}
 }
 
@@ -132,8 +185,9 @@ func (r *VipmanRPC) Register(args []string, ret *string) (err error) {
 						req.URL.Host = dest
 						LogVerbose("[%s] %s: %s%s -> %s\n", req.Proto, req.Method, req.Host, req.RequestURI, dest)
 					},
-				}}
+				}, false}
 				cl = append(cl, pd)
+				childs[key] = pd
 				LogVerbose("Created Proxy Direct: %s -> %s:%s ", pp[0], e, portDest)
 			}
 		}
@@ -144,17 +198,18 @@ func (r *VipmanRPC) Register(args []string, ret *string) (err error) {
 	return nil
 }
 
-func pause() {
-	Panic("")
-
+func pauseResume(pause bool, child string) {
+	for k, c := range childs {
+		if len(child) == 0 || (len(k) >= len(child) && k[0:len(child)-1] == child) {
+			c.pause = pause
+		}
+	}
 }
 
-func resume() {
-	Panic("")
-
-}
-
-func list() {
-	Panic("")
-
+func list(child string) {
+	for k, c := range childs {
+		if len(child) == 0 || (len(k) >= len(child) && k[0:len(child)-1] == child) {
+			fmt.Println(c.String())
+		}
+	}
 }

@@ -27,17 +27,13 @@ type rpcMessage struct {
 	ErrCh chan error
 }
 
-// TODO List of child statuses
 func (r *VipmanRPC) List(args []string, ret *string) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = r.(error)
-		}
-	}()
 	*ret = ""
-	for _, proc := range procs {
-		*ret += proc.name + "\n"
+	flagPort := DEF_RPC_PORT
+	for _, proc := range childs {
+		*ret += "[" + proc.Ip + "]\n" + RPCClientCallNoPrint("Status", proc.Ip, flagPort, 0, &[]string{}) + "\n"
 	}
+	fmt.Println(ret)
 	return err
 }
 
@@ -61,20 +57,40 @@ func (r *VipmanRPC) Status(args []string, ret *string) (err error) {
 	return err
 }
 
-func RPCClientCall(cmd, ip string, port int, args *[]string) error {
-	client, err := rpc.Dial("tcp", fmt.Sprintf("%s:%d", defaultClnAddr(ip), port))
+func RPCClientCallNA(cmd string, port int) {
+	Log(RPCClientCallNoPrint(cmd, "", port, 0, &[]string{}))
+}
+
+func RPCClientCall(cmd, ip string, port int, args *[]string) {
+	Log(RPCClientCallNoPrint(cmd, ip, port, 0, args))
+}
+
+const SleepBeforeRepeatSec = 10
+
+func RPCClientCallNoPrint(cmd, ip string, port, repeat int, args *[]string) string {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", defaultClnAddr(ip), port), SleepBeforeRepeatSec/2*time.Second)
 	if err != nil {
-		return err
+		Log("ERROR dialing %s %s:%d : %v \n", cmd, ip, port, err)
+		if repeat > 0 {
+			Log("Repeating RPC call %s after %d sec\n", cmd, SleepBeforeRepeatSec)
+			time.Sleep(SleepBeforeRepeatSec * time.Second)
+			return RPCClientCallNoPrint(cmd, ip, port, repeat-1, args)
+		} else {
+			return err.Error()
+		}
 	}
+	client := rpc.NewClient(conn)
 	defer client.Close()
 	var ret string
-	//Log("%s> %v", cmd, args)
-	client.Call("VipmanRPC."+cmd, args, &ret)
+	errc := client.Call("VipmanRPC."+cmd, args, &ret)
+	if errc != nil {
+		Log("RPC Call VipmanRPC.%s (%v) ERROR: %s\n", cmd, args, errc)
+		return errc.Error()
+	}
 	if FlagVerbose {
 		fmt.Printf("RPC[%d].%s \n", port, cmd)
 	}
-	fmt.Println(ret)
-	return nil
+	return ret
 }
 
 func defaultClnAddr(ip string) string {
