@@ -166,7 +166,7 @@ If --eth flag set, then will start on all IPs alias on all matching interfaces.
 `,
 			//Args: cobra.MinimumNArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-				vman.Start(&vman.StartInfo{flagProcfile, flagPort, flagEth, flagIp, flagParent, flagBaseDir, flagProxy, make(map[string][]*vman.UIP), 0})
+				vman.Start(&vman.StartInfo{flagProcfile, flagPort, flagEth, flagIp, flagParent, flagBaseDir, flagProxy, make(map[string][]*vman.UIP), 0, ""})
 			},
 		}, []func(*cobra.Command) string{fFlagProcfile, fFlagPort, fFlagEth, fFlagIp, fFlagParent, fFlagBaseDir, fFlagProxy}, []int{0}},
 		//---------------------------------------------------------------------------//

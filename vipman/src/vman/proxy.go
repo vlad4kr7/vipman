@@ -46,12 +46,14 @@ func (r *VipmanRPC) Proxy(args []string, ret *string) (err error) {
 			return errors.New("start LocalAddresses() is empty!")
 		}
 		var ips []string
+		ipss := ""
 		for _, e := range nics {
 			for _, i := range e {
 				ips = append(ips, i.Ip)
+				ipss += i.Ip + ","
 			}
 		}
-		Proxy(&StartInfo{"", DEF_RPC_PORT, pc.flagEth, pc.flagIp, "", "", pc.flagProxy, nics, compMax(ips)})
+		Proxy(&StartInfo{"", DEF_RPC_PORT, pc.flagEth, pc.flagIp, "", "", pc.flagProxy, nics, compMax(ips), ipss})
 	} else {
 		list(pc.flagChild)
 	}
@@ -173,7 +175,7 @@ func (r *VipmanRPC) Register(args []string, ret *string) (err error) {
 		if len(pp) == 2 {
 			portDest = pp[1]
 		}
-		for _, e := range strings.Split(args[0], ",") { // ips
+		for _, e := range strings.Split(args[0], ",") { // Ips
 			dest := e + ":" + portDest
 			key := pp[0] + ":" + dest
 			pd, ok := childs[key]

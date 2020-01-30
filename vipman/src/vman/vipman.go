@@ -43,6 +43,7 @@ type procInfo struct {
 	list                []*proc
 	stoppedBySupervisor bool
 	mainColorIndex      int
+	ips                 string // comma separated list of used IPs
 }
 
 func (i procInfo) logName(f *StartInfo, ip *UIP) string {
@@ -65,6 +66,7 @@ type StartInfo struct {
 	FlagBaseDir, FlagProxy      string
 	Interfaces                  map[string][]*UIP
 	NameDiff                    int
+	Ips                         string
 }
 
 func (si *StartInfo) String() string {
@@ -92,7 +94,6 @@ func readProcfile(flagProcfile string) {
 		k, v := strings.TrimSpace(tokens[0]), strings.TrimSpace(tokens[1])
 
 		proc := &procInfo{name: k, cmdline: v, mainColorIndex: index, list: []*proc{}}
-		//proc.cond = sync.NewCond(&proc.mu)
 
 		procs = append(procs, proc)
 		if len(k) > maxProcNameLength {
@@ -145,21 +146,28 @@ func Start(flagArgs *StartInfo) {
 	defer cancel()
 	godotenv.Load()
 	rpcChan := make(chan *rpcMessage, 10)
-	nics, err := LocalAddresses(flagArgs.FlagEth)
-	if err != nil {
-		Panic("start LocalAddresses(): %s \n", err.Error())
-	}
-	if len(nics) == 0 {
-		Panic("%s LocalAddresses() is empty!\n", "start")
-	}
-	flagArgs.Interfaces = nics
-	var ips []string
-	for _, e := range nics {
-		for _, i := range e {
-			ips = append(ips, i.Ip)
+	if len(flagArgs.FlagIp) > 0 {
+		flagArgs.Ips = flagArgs.FlagIp
+	} else {
+		nics, err := LocalAddresses(flagArgs.FlagEth)
+		if err != nil {
+			Panic("start LocalAddresses(): %s \n", err.Error())
 		}
+		if len(nics) == 0 {
+			Panic("%s LocalAddresses() is empty!\n", "start")
+		}
+		flagArgs.Interfaces = nics
+		ipss := ""
+		var ips []string
+		for _, e := range nics {
+			for _, i := range e {
+				ips = append(ips, i.Ip)
+				ipss += i.Ip + ","
+			}
+		}
+		flagArgs.NameDiff = compMax(ips)
+		flagArgs.Ips = ipss[0 : len(ipss)-2]
 	}
-	flagArgs.NameDiff = compMax(ips)
 	go startRpcServer(flagArgs, ctx, rpcChan)
 	startAllProcs(flagArgs, sigChan, rpcChan)
 }
@@ -235,6 +243,7 @@ func spawnProc(p *proc, kill bool) {
 	cmd.Stderr = p.logger
 	//	cmd.SysProcAttr = procAttrs
 	cmd.Env = append(os.Environ(), fmt.Sprintf("IP=%s", p.ip.Ip))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("IPS=%s", p.pi.ips))
 	fmt.Fprintf(p.logger, "Starting %s %s on %s\n", p.pi.name, p.cmdLine, p.ip.Ip)
 	if err := cmd.Start(); err != nil {
 		select {
@@ -305,7 +314,9 @@ func startProc(flagArgs *StartInfo, id int, pi *procInfo, ip *UIP, errCh chan<- 
 	p := &proc{ip: ip, colorIndex: pi.mainColorIndex, pi: pi, errCh: errCh}
 	pi.list = append(pi.list, p)
 	p.logger = createLogger(p.pi.logName(flagArgs, ip), p.colorIndex, id)
-	cmdline := strings.Replace(p.pi.cmdline, "$IP", p.ip.Ip, 1)
+	cmdline := strings.ReplaceAll(p.pi.cmdline, "$IP", p.ip.Ip) // set process IP
+	cmdline = strings.ReplaceAll(cmdline, "$IPS", flagArgs.Ips) // set list of used IP by all processes
+	p.pi.ips = flagArgs.Ips
 	if !(cmdline[0] == '.' || cmdline[0] == '/') {
 		cmdline = flagArgs.FlagBaseDir + "/" + cmdline
 	}
