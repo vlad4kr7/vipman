@@ -64,6 +64,7 @@ type StartInfo struct {
 	FlagPort                    int
 	FlagEth, FlagIp, FlagParent string
 	FlagBaseDir, FlagProxy      string
+	FlagWorkspaceDir            string
 	Interfaces                  map[string][]*UIP
 	NameDiff                    int
 	Ips                         string
@@ -244,6 +245,7 @@ func spawnProc(p *proc, kill bool) {
 	//	cmd.SysProcAttr = procAttrs
 	cmd.Env = append(os.Environ(), fmt.Sprintf("IP=%s", p.ip.Ip))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("IPS=%s", p.pi.ips))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("WORKSPACE=%s", p.pi.ips))
 	fmt.Fprintf(p.logger, "Starting %s %s on %s\n", p.pi.name, p.cmdLine, p.ip.Ip)
 	if err := cmd.Start(); err != nil {
 		select {

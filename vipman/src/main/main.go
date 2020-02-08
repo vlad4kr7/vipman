@@ -61,8 +61,13 @@ func fFlagProcfile(c *cobra.Command) string {
 }
 
 func fFlagBaseDir(c *cobra.Command) string {
-	c.Flags().StringVarP(&flagBaseDir, "basedir", "d", ".", "Base dir for node")
+	c.Flags().StringVarP(&flagBaseDir, "basedir", "d", ".", "Base dir for procfile executables")
 	return "basedir"
+}
+
+func fFlagWorkspaceDir(c *cobra.Command) string {
+	c.Flags().StringVarP(&flagWorkspaceDir, "workspace", "w", "~/.", "Workspace dir for procfile replacements of $WORKSPACE")
+	return "workspace"
 }
 
 func fFlagPort(c *cobra.Command) string {
@@ -104,7 +109,7 @@ func fFlagProcName(c *cobra.Command) string {
 const CLIENT = `
 This is a rpc call to running vipman service to perform the command. The command (except proxy) also will broadcasted to all underlying services `
 
-var flagEth, flagProcfile, flagBaseDir, flagSet, flagIp string
+var flagEth, flagProcfile, flagBaseDir, flagWorkspaceDir, flagSet, flagIp string
 var flagParent, flagChild, flagProxy, flagProxyCmd, flagProcName string
 var flagClean bool
 var flagPort int
@@ -166,9 +171,9 @@ If --eth flag set, then will start on all IPs alias on all matching interfaces.
 `,
 			//Args: cobra.MinimumNArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-				vman.Start(&vman.StartInfo{flagProcfile, flagPort, flagEth, flagIp, flagParent, flagBaseDir, flagProxy, make(map[string][]*vman.UIP), 0, ""})
+				vman.Start(&vman.StartInfo{flagProcfile, flagPort, flagEth, flagIp, flagParent, flagBaseDir, flagProxy, flagWorkspaceDir, make(map[string][]*vman.UIP), 0, ""})
 			},
-		}, []func(*cobra.Command) string{fFlagProcfile, fFlagPort, fFlagEth, fFlagIp, fFlagParent, fFlagBaseDir, fFlagProxy}, []int{0}},
+		}, []func(*cobra.Command) string{fFlagProcfile, fFlagPort, fFlagEth, fFlagIp, fFlagParent, fFlagBaseDir, fFlagWorkspaceDir, fFlagProxy}, []int{0}},
 		//---------------------------------------------------------------------------//
 		CommandVO{&cobra.Command{
 			Use:   "stop",

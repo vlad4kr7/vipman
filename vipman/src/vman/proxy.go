@@ -53,7 +53,7 @@ func (r *VipmanRPC) Proxy(args []string, ret *string) (err error) {
 				ipss += i.Ip + ","
 			}
 		}
-		Proxy(&StartInfo{"", DEF_RPC_PORT, pc.flagEth, pc.flagIp, "", "", pc.flagProxy, nics, compMax(ips), ipss})
+		Proxy(&StartInfo{"", DEF_RPC_PORT, pc.flagEth, pc.flagIp, "", "", pc.flagProxy, "", nics, compMax(ips), ipss})
 	} else {
 		list(pc.flagChild)
 	}

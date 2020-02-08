@@ -4,12 +4,12 @@ go 1.13
 
 require (
 	github.com/agtorre/gocolorize v1.0.0 // indirect
-	github.com/hoisie/web v0.1.0
+	github.com/hoisie/web v0.1.0 // indirect
 	github.com/inconshreveable/log15 v0.0.0-20180818164646-67afb5ed74ec // indirect
 	github.com/jessevdk/go-flags v1.4.0 // indirect
 	github.com/joho/godotenv v1.3.0
 	github.com/labstack/echo/v4 v4.1.11
-	github.com/mattn/go-colorable v0.1.4
+	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/mattn/go-isatty v0.0.11 // indirect
 	github.com/pkg/errors v0.8.1 // indirect
 	github.com/revel/cmd v0.21.1 // indirect
