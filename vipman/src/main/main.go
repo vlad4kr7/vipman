@@ -186,7 +186,7 @@ If --eth flag set, then will start on all IPs alias on all matching interfaces.
 		//---------------------------------------------------------------------------//
 		CommandVO{&cobra.Command{
 			Use:   "stop-all",
-			Short: "Stop process on all nodes or all processes on IP or interface",
+			Short: "Stop all process on all nodes or all processes on IP or interface",
 			Long:  `Stop all services on all vipman(s)` + CLIENT,
 			Run: func(cmd *cobra.Command, args []string) {
 				vman.RPCClientCallNA("StopAll", flagPort)

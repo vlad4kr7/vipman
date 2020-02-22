@@ -89,7 +89,7 @@ func prepareAdd(flagEth, flagSet string) {
 						cmdErr = true
 					} else {
 						if FlagVerbose {
-							out.WriteString("IP alias started by command: ifconfig " + etha + " up")
+							out.WriteString("\nIP alias started by command: ifconfig " + etha + " up")
 						}
 
 						cmd3 := exec.Command("ifconfig", etha, "up")
@@ -106,7 +106,10 @@ func prepareAdd(flagEth, flagSet string) {
 					Log("out> " + out.String())
 				}
 				if outerr.Len() > 0 {
-					Log("err> " + outerr.String())
+				    outErrStr := outerr.String()
+				    if FlagVerbose || strings.LastIndex(outErrStr, "which is empty") > 0 {
+					    Log("err> " + outErrStr)
+                    }
 				}
 				if cmdErr {
 					os.Exit(1)
